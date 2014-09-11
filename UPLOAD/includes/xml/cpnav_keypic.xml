@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<navgroups product="keypic">
+
+	<navgroup phrase="keypic" permissions="canadminsettings" hr="true" displayorder="16">
+		
+		<navoption displayorder="10">
+			<phrase>keypic_form_details</phrase>
+			<link>keypic.php?do=details</link>
+		</navoption>
+		
+		<navoption displayorder="9001">
+			<phrase>keypic_settings</phrase>
+			<link>options.php?do=options&amp;dogroup=keypic</link>
+		</navoption>
+		
+	</navgroup>
+	
+</navgroups>

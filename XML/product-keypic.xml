@@ -1,0 +1,513 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+
+<product productid="keypic" active="1">
+	<title>NO CAPTCHA Anti-Spam with Keypic</title>
+	<description>Keypic protects you from Spam without using CAPTCHA.</description>
+	<version>1.0</version>
+	<url />
+	<versioncheckurl />
+	<dependencies>
+		<dependency dependencytype="vbulletin" minversion="4.2" maxversion="4.9.9" />
+	</dependencies>
+	<codes>
+		<code version="1.0">
+			<installcode><![CDATA[$db->hide_errors();
+$db->query_write("ALTER TABLE " . TABLE_PREFIX . "post add keypic_details mediumtext");
+$db->show_errors();]]></installcode>
+			<uninstallcode><![CDATA[$db->hide_errors();
+$db->query_write("ALTER TABLE " . TABLE_PREFIX . "post DROP COLUMN keypic_details");
+$db->show_errors();]]></uninstallcode>
+		</code>
+		<code version="1.1">
+			<installcode><![CDATA[$vbulletin->keypic['forms'] = array(
+		'register'	=> array(
+			'enabled'	=> 1,
+			'width_height'	=> '728x90',
+			'requestType'	=> 'getScript'
+		),
+
+		'login'		=> array(
+			'enabled'	=> 0,
+			'width_height'	=> '468x60',
+			'requestType'	=> 'getScript'
+		),
+
+		'post'		=> array(
+			'enabled'	=> 1,
+			'width_height'	=> '728x90',
+			'requestType'	=> 'getScript'
+		),
+
+		'contact'		=> array(
+			'enabled'	=> 1,
+			'width_height'	=> '728x90',
+			'requestType'	=> 'getScript'
+		)
+	);
+
+
+build_datastore('keypic', serialize($vbulletin->keypic), 1);]]></installcode>
+			<uninstallcode />
+		</code>
+	</codes>
+	<templates>
+		<template name="keypic_js" templatetype="template" date="1408643943" username="admin" version="1.0"><![CDATA[<script type="text/javascript">
+function keypic_report()
+{
+    var postid = this.getAttribute('data-postid');
+    if (confirm("{vb:rawphrase report_spam_and_delete}") == true)
+    {
+        var f = document.createElement("form");
+        f.setAttribute('method',"post");
+        f.setAttribute('action',"inlinemod.php");
+
+        var i = document.createElement("input");
+        i.setAttribute('type',"hidden");
+        i.setAttribute('name', 'plist[' + postid + ']');
+        i.setAttribute('value', 1);
+        f.appendChild(i);
+
+        var i = document.createElement("input");
+        i.setAttribute('type',"hidden");
+        i.setAttribute('name', 'securitytoken');
+        i.setAttribute('value', SECURITYTOKEN);
+        f.appendChild(i);
+
+        var i = document.createElement("input");
+        i.setAttribute('type',"hidden");
+        i.setAttribute('name', 'reportspam');
+        i.setAttribute('value', 1);
+        f.appendChild(i);
+
+        var i = document.createElement("input");
+        i.setAttribute('type',"hidden");
+        i.setAttribute('name',"do");
+
+        <vb:if condition="$show['spamctrls']">
+        i.setAttribute('value', 'spampost');
+        <vb:else />
+        i.setAttribute('value', 'deleteposts');
+        </vb:if>
+        f.appendChild(i);
+
+        this.appendChild(f);
+        f.submit();
+    }
+}
+
+YAHOO.util.Event.addListener(YAHOO.util.Dom.getElementsByClassName('keypic_report', 'a'), "click", keypic_report);
+</script>]]></template>
+		<template name="keypic_post" templatetype="template" date="1409414184" username="admin" version="1.0"><![CDATA[<vb:if condition="$keypic">
+<div class="section">
+    <div class="blockrow">
+         <input type="hidden" name="Token" value="{vb:raw token}" />
+         <div style="text-align:center;">{vb:raw keypic}</div>
+    </div>
+</div>
+</vb:if>
+]]></template>
+		<template name="keypic_post_spam_status" templatetype="template" date="1408638383" username="admin" version="1.0"><![CDATA[<a href="javascript://" style="padding-left: 0px;" title="{vb:rawphrase report_spam_delete_x, {vb:raw keypic_details.spam}}" class="keypic_report" data-postid="{vb:raw post.postid}">
+    <b><span style="color:{vb:raw color};">{vb:raw keypic_details.spam}%</span> {vb:rawphrase spam}</b>
+</a>]]></template>
+	</templates>
+	<stylevardfns>
+	</stylevardfns>
+	<stylevars>
+	</stylevars>
+	<plugins>
+		<plugin active="1" executionorder="5">
+			<title>Admin Options Processing Build</title>
+			<hookname>admin_options_processing_build</hookname>
+			<phpcode><![CDATA[if ($oldsetting['varname'] == 'keypic_formid')
+{
+	if ($oldsetting['value'] != $newvalue)
+	{
+		$response = Keypic::checkFormID($newvalue);
+		$vbulletin->keypic['status'] = $response['status'];
+	
+                build_datastore('keypic', serialize($vbulletin->keypic), 1);
+	}
+}]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>Cache Templates</title>
+			<hookname>cache_templates</hookname>
+			<phpcode><![CDATA[$cache[] = 'keypic_post';
+
+if (THIS_SCRIPT == 'showthread' OR THIS_SCRIPT == 'newreply')
+{
+    $cache[] = 'keypic_post_spam_status';
+}
+
+if (THIS_SCRIPT == 'showthread')
+{
+    $cache[] = 'keypic_js';
+}]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>Error Generic</title>
+			<hookname>error_generic</hookname>
+			<phpcode><![CDATA[if (isset($vbulletin->keypic['forms']['login']) && $vbulletin->keypic['forms']['login']['enabled'] == 1 && $show['permission_error'] && !defined('IN_MOBIQUO') && $vbulletin->keypic)
+{
+	$keypic_details = $vbulletin->keypic['forms']['login'];
+	$token = Keypic::getToken(false);
+        $keypic = Keypic::getIt($keypic_details['RequestType'], $keypic_details['width_height']);
+
+	$templater = vB_Template::create('keypic_post');
+	$templater->register('token', $token);
+        $templater->register('keypic', $keypic);        
+	$keypic_post = $templater->render();
+
+        vB_Template::preRegister($templatename, array('keypic_post' => $keypic_post)); 
+
+        $postvars .= '<input type="hidden" name="Token" value="' . $token . '" />';
+}]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>Global Complete</title>
+			<hookname>global_complete</hookname>
+			<phpcode><![CDATA[if ((THIS_SCRIPT == 'newthread' OR THIS_SCRIPT == 'newreply' OR THIS_SCRIPT == 'register') && !defined('IN_MOBIQUO') && $vbulletin->keypic && (!$show['permission_error']))
+{
+     keypic_global_auto_edit($output);
+}]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>Keypic Init</title>
+			<hookname>global_setup_complete</hookname>
+			<phpcode><![CDATA[if (!defined('IN_MOBIQUO') && $vbulletin->keypic)
+keypic_init();]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>Init Startup</title>
+			<hookname>init_startup</hookname>
+			<phpcode><![CDATA[require_once(DIR . '/includes/class_keypic.php');
+require_once(DIR . '/includes/functions_keypic.php');
+
+$datastore_fetch[] = "'keypic'";]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>InlineMod DeleteSpam</title>
+			<hookname>inlinemod_spampost</hookname>
+			<phpcode><![CDATA[if (!empty($postids) && !defined('IN_MOBIQUO') && $vbulletin->keypic && isset($_REQUEST['reportspam']))
+{
+    $sposts = $db->query_read_slave("SELECT keypic_details FROM " . TABLE_PREFIX . "post AS post WHERE keypic_details IS NOT NULL AND postid IN ($postids)");
+
+            while ($post = $db->fetch_array($sposts))
+            {
+                $post['keypic_details'] = @unserialize($post['keypic_details']);
+                if (isset($post['keypic_details']['token']))
+                {
+                    Keypic::reportSpam($post['keypic_details']['token']);
+                }
+                
+            }
+}]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>Login Verify</title>
+			<hookname>login_verify_success</hookname>
+			<phpcode><![CDATA[if (!defined('IN_MOBIQUO') && $vbulletin->keypic)
+keypic_login_submit($return_value);]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>Newpost Process</title>
+			<hookname>newpost_process</hookname>
+			<phpcode><![CDATA[if (!$post['preview'] && !defined('IN_MOBIQUO') && $vbulletin->keypic)
+{
+    keypic_post_submit($dataman, $post);
+}]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>NewReply Form Complete</title>
+			<hookname>newreply_form_complete</hookname>
+			<phpcode><![CDATA[if (isset($vbulletin->keypic['forms']['post']) && $vbulletin->keypic['forms']['post']['enabled'] == 1 && !defined('IN_MOBIQUO') && $vbulletin->keypic)  
+{  
+    $token = Keypic::getToken(false);
+
+    if (IS_MOBILE_STYLE)
+    {
+        $messagearea .= "<input type=\"hidden\" name=\"Token\" value=\"$token\" >";
+    }
+    else
+    {
+        $keypic_details = $vbulletin->keypic['forms']['post'];  
+        $keypic = Keypic::getIt($keypic_details['RequestType'], $keypic_details['width_height']);  
+
+        $templater = vB_Template::create('keypic_post');  
+        $templater->register('token', $token);  
+        $templater->register('keypic', $keypic);  
+        $keypic_post = $templater->render(); 
+
+        vB_Template::preRegister('newreply', array('keypic_post' => $keypic_post)); 
+    }
+}]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>Newthread Form Complete</title>
+			<hookname>newthread_form_complete</hookname>
+			<phpcode><![CDATA[if (isset($vbulletin->keypic['forms']['post']) && $vbulletin->keypic['forms']['post']['enabled'] == 1 && !defined('IN_MOBIQUO') && $vbulletin->keypic)  
+{  
+    $token = Keypic::getToken(false);
+
+    if (IS_MOBILE_STYLE)
+    {
+    	$messagearea .= "<input type=\"hidden\" name=\"Token\" value=\"$token\" >";
+    }
+    else
+    {
+    	$keypic_details = $vbulletin->keypic['forms']['post'];    
+    	$keypic = Keypic::getIt($keypic_details['RequestType'], $keypic_details['width_height']);  
+
+    	$templater = vB_Template::create('keypic_post');  
+    	$templater->register('token', $token);  
+    	$templater->register('keypic', $keypic);  
+    	$keypic_post = $templater->render(); 
+
+    	vB_Template::preRegister('newthread', array('keypic_post' => $keypic_post)); 
+    }
+}]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>Parse templates</title>
+			<hookname>parse_templates</hookname>
+			<phpcode><![CDATA[if (!$vbulletin->userinfo['userid'] && isset($vbulletin->keypic['forms']['login']) && $vbulletin->keypic['forms']['login']['enabled'] == 1 && !defined('IN_MOBIQUO') && $vbulletin->keypic)  
+{ 
+	if (!IS_MOBILE_STYLE)
+	{
+	    $vbulletin->templatecache['ad_global_header2'] = $vbulletin->templatecache['ad_global_header2'] .  '$final_rendered .= \'\' . $keypic . \'\';'; 
+	 
+	    $keypic_details = $vbulletin->keypic['forms']['login'];  
+	    $token = Keypic::getToken(false);  
+	    $keypic = Keypic::getIt($keypic_details['RequestType'], $keypic_details['width_height']); 
+
+	    vB_Template::preRegister('ad_global_header2', array('keypic' => $keypic));    
+
+            require_once(DIR.'/includes/class_template_parser.php');  
+		$parser = new vB_TemplateParser('<input type="hidden" name="do" value="login" />');  
+        $parser->dom_doc = new vB_DomDocument($parser->fetch_dom_compatible());  
+
+        $find = trim($parser->_parse_nodes($parser->dom_doc->childNodes()));  
+              
+        $parser = new vB_TemplateParser('<input type="hidden" name="Token" value="' . $token . '" />');  
+        $parser->dom_doc = new vB_DomDocument($parser->fetch_dom_compatible());  
+
+        $replace = trim($parser->_parse_nodes($parser->dom_doc->childNodes())); 
+
+		$vbulletin->templatecache['header'] = str_replace($find, $find . $replace, $vbulletin->templatecache['header']);
+	}
+	else
+	{
+		$token = Keypic::getToken(false); 
+
+		require_once(DIR.'/includes/class_template_parser.php');  
+		$parser = new vB_TemplateParser('<input type="hidden" name="do" value="login" />');  
+        $parser->dom_doc = new vB_DomDocument($parser->fetch_dom_compatible());  
+
+        $find = trim($parser->_parse_nodes($parser->dom_doc->childNodes()));  
+              
+        $parser = new vB_TemplateParser('<input type="hidden" name="Token" value="' . $token . '" />');  
+        $parser->dom_doc = new vB_DomDocument($parser->fetch_dom_compatible());  
+
+        $replace = trim($parser->_parse_nodes($parser->dom_doc->childNodes())); 
+
+		$vbulletin->templatecache['mobile_login'] = str_replace($find, $find . $replace, $vbulletin->templatecache['mobile_login']);
+	} 
+}]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="100">
+			<title>Postbit Display Complete</title>
+			<hookname>postbit_display_complete</hookname>
+			<phpcode><![CDATA[$this->post['keypic_details'] = @unserialize($this->post['keypic_details']);
+
+if(isset($this->post['keypic_details']['spam']) && $this->post['keypic_details']['spam'] > 0 && $show['managepost'] && $this->registry->keypic)
+{
+    $color = $this->post['keypic_details']['spam'] < Keypic::getSpamPercentage() ? 'green' : 'red';
+
+    $templater = vB_Template::create('keypic_post_spam_status');
+    $templater->register('post', $this->post);
+    $templater->register('color', $color);
+    $templater->register('keypic_details', $this->post['keypic_details']);
+    $template_hook['postbit_controls'] .= $templater->render();
+}]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>Post Data Start</title>
+			<hookname>postdata_start</hookname>
+			<phpcode><![CDATA[$this->validfields['keypic_details'] = array(TYPE_STR, REQ_NO);]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>Register AddMember Process</title>
+			<hookname>register_addmember_process</hookname>
+			<phpcode><![CDATA[if (!defined('IN_MOBIQUO') && $vbulletin->keypic)
+keypic_register_submit($userdata);]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>Register Form Complete</title>
+			<hookname>register_form_complete</hookname>
+			<phpcode><![CDATA[if (isset($vbulletin->keypic['forms']['register']) && $vbulletin->keypic['forms']['register']['enabled'] == 1 && !defined('IN_MOBIQUO') && $vbulletin->keypic) 
+{  
+	$token = Keypic::getToken(false);
+
+    if (IS_MOBILE_STYLE)
+    {
+    	$customfields_other .= "<input type=\"hidden\" name=\"Token\" value=\"$token\" >";
+    }
+    else
+    {
+	    $keypic_details = $vbulletin->keypic['forms']['register'];  
+	    $keypic = Keypic::getIt($keypic_details['RequestType'], $keypic_details['width_height']);  
+
+	    $templater = vB_Template::create('keypic_post');  
+	    $templater->register('token', $token);  
+	    $templater->register('keypic', $keypic);  
+	    $keypic_post = $templater->render(); 
+
+	    vB_Template::preRegister('register', array('keypic_post' => $keypic_post)); 
+	}
+}]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>SendMessage Contact Us Complete</title>
+			<hookname>sendmessage_contactus_complete</hookname>
+			<phpcode><![CDATA[if (isset($vbulletin->keypic['forms']['contact']) && $vbulletin->keypic['forms']['contact']['enabled'] == 1 && !defined('IN_MOBIQUO') && $vbulletin->keypic) 
+{ 
+    $keypic_details = $vbulletin->keypic['forms']['contact']; 
+    $token = Keypic::getToken(false); 
+    $keypic = Keypic::getIt($keypic_details['RequestType'], $keypic_details['width_height']); 
+
+    $templater = vB_Template::create('keypic_post'); 
+    $templater->register('token', $token); 
+    $templater->register('keypic', $keypic); 
+    $keypic_post = $templater->render(); 
+
+    require_once(DIR.'/includes/class_template_parser.php'); 
+
+    $parser = new vB_TemplateParser('<input type="hidden" name="do" value="docontactus" />'); 
+    $parser->dom_doc = new vB_DomDocument($parser->fetch_dom_compatible()); 
+
+    $find = trim($parser->_parse_nodes($parser->dom_doc->childNodes())); 
+         
+    $parser = new vB_TemplateParser('{vb:raw keypic_post}'); 
+    $parser->dom_doc = new vB_DomDocument($parser->fetch_dom_compatible()); 
+
+    $replace = trim($parser->_parse_nodes($parser->dom_doc->childNodes())); 
+
+    $vbulletin->templatecache['contactus'] = str_replace($find, $replace . $find, $vbulletin->templatecache['contactus']); 
+
+    vB_Template::preRegister('contactus', array('keypic_post' => $keypic_post)); 
+}]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>SendMessage Contact Us Process</title>
+			<hookname>sendmessage_docontactus_process</hookname>
+			<phpcode><![CDATA[if (!defined('IN_MOBIQUO') && $vbulletin->keypic)
+keypic_contact_submit($message, $name, $email, $errors);]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>Showthread Complete</title>
+			<hookname>showthread_complete</hookname>
+			<phpcode><![CDATA[if (isset($vbulletin->keypic['forms']['post']) && $vbulletin->keypic['forms']['post']['enabled'] == 1 && !defined('IN_MOBIQUO') && $vbulletin->keypic) 
+{ 
+    $token = Keypic::getToken(false);
+
+    if (IS_MOBILE_STYLE)
+    {
+        $messagearea .= "<input type=\"hidden\" name=\"Token\" value=\"$token\" >";
+    }
+    else
+    {
+        $keypic_details = $vbulletin->keypic['forms']['post']; 
+        $keypic = Keypic::getIt($keypic_details['RequestType'], $keypic_details['width_height']); 
+
+        $templater = vB_Template::create('keypic_post'); 
+        $templater->register('token', $token); 
+        $templater->register('keypic', $keypic); 
+        $keypic_post = $templater->render(); 
+
+        require_once(DIR.'/includes/class_template_parser.php'); 
+
+        $parser = new vB_TemplateParser('<input type="hidden" name="fromquickreply" value="1" />'); 
+        $parser->dom_doc = new vB_DomDocument($parser->fetch_dom_compatible()); 
+
+        $find = trim($parser->_parse_nodes($parser->dom_doc->childNodes())); 
+             
+        $parser = new vB_TemplateParser('{vb:raw keypic_post}'); 
+        $parser->dom_doc = new vB_DomDocument($parser->fetch_dom_compatible()); 
+
+        $replace = trim($parser->_parse_nodes($parser->dom_doc->childNodes())); 
+
+        $vbulletin->templatecache['SHOWTHREAD'] = str_replace($find, $replace . $find, $vbulletin->templatecache['SHOWTHREAD']); 
+
+        vB_Template::preRegister('SHOWTHREAD', array('keypic_post' => $keypic_post)); 
+
+        $template_hook['showthread_below_posts'] .= vB_Template::create('keypic_js')->render();
+    }
+}]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>Thread First Post Data Do Set</title>
+			<hookname>threadfpdata_doset</hookname>
+			<phpcode><![CDATA[if ($fieldname == 'keypic_details')
+{
+    $tables = array('post');
+}]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>Thread First Post Data Start</title>
+			<hookname>threadfpdata_start</hookname>
+			<phpcode><![CDATA[$this->validfields['keypic_details'] = array(TYPE_STR, REQ_NO);]]></phpcode>
+		</plugin>
+	</plugins>
+	<phrases>
+		<phrasetype name="Control Panel Global" fieldname="cpglobal">
+			<phrase name="contact_form_details" date="1407692338" username="admin" version=""><![CDATA[Contact Form Details]]></phrase>
+			<phrase name="content_preview" date="1407603695" username="admin" version=""><![CDATA[Content Preview]]></phrase>
+			<phrase name="enabled_" date="1407598229" username="admin" version=""><![CDATA[Enabled]]></phrase>
+			<phrase name="keypic" date="1407586627" username="admin" version=""><![CDATA[Keypic]]></phrase>
+			<phrase name="keypic_form_details" date="1407586670" username="admin" version=""><![CDATA[Keypic Form Details]]></phrase>
+			<phrase name="keypic_settings" date="1407586646" username="admin" version=""><![CDATA[Keypic Settings]]></phrase>
+			<phrase name="login_form_details" date="1407598593" username="admin" version=""><![CDATA[Login Form Details]]></phrase>
+			<phrase name="post_form_details" date="1407692658" username="admin" version=""><![CDATA[Post Form Details]]></phrase>
+			<phrase name="registration_form_details" date="1407587747" username="admin" version=""><![CDATA[Registration Form Details]]></phrase>
+			<phrase name="requestType" date="1407599228" username="admin" version=""><![CDATA[RequestType]]></phrase>
+			<phrase name="width_height" date="1407598305" username="admin" version=""><![CDATA[Width Height]]></phrase>
+		</phrasetype>
+		<phrasetype name="Error Messages" fieldname="error">
+			<phrase name="form_details_updated_successfully" date="1407691964" username="admin" version=""><![CDATA[Form Details Updated Successfully]]></phrase>
+			<phrase name="invalid_keypic_post_token" date="1409412685" username="admin" version=""><![CDATA[Invalid Keypic Post Token]]></phrase>
+			<phrase name="keypic_contact_spam_message" date="1407822367" username="admin" version=""><![CDATA[Keypic judged the sending activity as spamming. <br />
+Failed to send your message. Please try later or contact the administrator by another method.]]></phrase>
+			<phrase name="keypic_login_spam_message" date="1408635779" username="admin" version=""><![CDATA[Your login is blocked. Contact the administrator to resolve the issue.]]></phrase>
+			<phrase name="keypic_register_spam_message" date="1408108755" username="admin" version=""><![CDATA[Sorry, your registration is blocked. Contact administrator to resolve the issue.]]></phrase>
+		</phrasetype>
+		<phrasetype name="GLOBAL" fieldname="global">
+			<phrase name="report_spam_delete_x" date="1408107366" username="admin" version=""><![CDATA[Report SPAM and Delete (spam {1}%)]]></phrase>
+			<phrase name="spam" date="1408015605" username="admin" version=""><![CDATA[SPAM]]></phrase>
+		</phrasetype>
+		<phrasetype name="Show Thread" fieldname="showthread">
+			<phrase name="keypic_spam_status" date="1408010467" username="admin" version=""><![CDATA[Keypic SPAM Status]]></phrase>
+			<phrase name="report_spam_and_delete" date="1408643965" username="admin" version=""><![CDATA[Report SPAM And Delete]]></phrase>
+		</phrasetype>
+		<phrasetype name="vBulletin Settings" fieldname="vbsettings">
+			<phrase name="setting_keypic_formid_desc" date="1407585780" username="admin" version="1.0"><![CDATA[If you don't have an API FormID yet, you can get one at <a target="_blank" href="https://keypic.com/?action=register">keypic.com</a>.]]></phrase>
+			<phrase name="setting_keypic_formid_title" date="1407585780" username="admin" version="1.0"><![CDATA[Keypic FormID]]></phrase>
+			<phrase name="settinggroup_keypic" date="1407584185" username="admin" version="1.0"><![CDATA[Keypic]]></phrase>
+		</phrasetype>
+	</phrases>
+	<options>
+		<settinggroup name="keypic" displayorder="65535">
+			<setting varname="keypic_formid" displayorder="10">
+				<datatype>free</datatype>
+				<validationcode><![CDATA[return ($data != '');]]></validationcode>
+			</setting>
+		</settinggroup>
+	</options>
+	<helptopics>
+	</helptopics>
+	<cronentries>
+	</cronentries>
+	<faqentries>
+	</faqentries>
+	<navigation>
+	</navigation>
+</product>
