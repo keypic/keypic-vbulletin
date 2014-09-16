@@ -124,7 +124,7 @@ if ($_REQUEST['do'] == 'details')
 
 			if ($vbulletin->keypic['status'] == 'response')
 			{
-				$contentPreview = Keypic::getIt($form['requestType'], $form['width_height']);
+				//$contentPreview = Keypic::getIt($form['requestType'], $form['width_height']);
 			}
 			elseif($vbulletin->keypic['status'] == 'error')
 			{
