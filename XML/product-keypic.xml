@@ -49,6 +49,14 @@ $db->show_errors();]]></uninstallcode>
 build_datastore('keypic', serialize($vbulletin->keypic), 1);]]></installcode>
 			<uninstallcode />
 		</code>
+		<code version="1.2">
+			<installcode><![CDATA[$db->hide_errors();
+$db->query_write("ALTER TABLE " . TABLE_PREFIX . "user add keypic_user_status mediumtext");
+$db->show_errors();]]></installcode>
+			<uninstallcode><![CDATA[$db->hide_errors();
+$db->query_write("ALTER TABLE " . TABLE_PREFIX . "user DROP COLUMN keypic_user_status");
+$db->show_errors();]]></uninstallcode>
+		</code>
 	</codes>
 	<templates>
 		<template name="keypic_js" templatetype="template" date="1408643943" username="admin" version="1.0"><![CDATA[<script type="text/javascript">
@@ -457,6 +465,37 @@ keypic_contact_submit($message, $name, $email, $errors);]]></phpcode>
 			<hookname>threadfpdata_start</hookname>
 			<phpcode><![CDATA[$this->validfields['keypic_details'] = array(TYPE_STR, REQ_NO);]]></phpcode>
 		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>UserAdmin Edit Column 1</title>
+			<hookname>useradmin_edit_column1</hookname>
+			<phpcode><![CDATA[$user['keypic_user_status'] = @unserialize($user['keypic_user_status']);
+
+$spampercent = (isset($user['keypic_user_status']['spam']) ? $user['keypic_user_status']['spam'] : 0);
+
+print_table_break('', $INNERTABLEWIDTH);
+print_table_header($vbphrase['keypic_spam_status']);
+
+$spamstatus = '<b>' . $spampercent . '% SPAM</b>';
+
+print_label_row($spamstatus, construct_button_code($vbphrase['report_spam'], 'user.php?do=edit&amp;spam=1&amp;u=' . $user['userid']));]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>Useradmin Edit Start</title>
+			<hookname>useradmin_edit_start</hookname>
+			<phpcode><![CDATA[if ($_REQUEST['spam'] == 1)
+{
+    $keypic_details = @unserialize($user['keypic_user_status']); 
+    if (isset($keypic_details['token'])) 
+    { 
+        Keypic::reportSpam($keypic_details['token']); 
+    } 
+}]]></phpcode>
+		</plugin>
+		<plugin active="1" executionorder="5">
+			<title>Userdata Start</title>
+			<hookname>userdata_start</hookname>
+			<phpcode><![CDATA[$this->validfields['keypic_user_status'] = array(TYPE_STR, REQ_NO);]]></phpcode>
+		</plugin>
 	</plugins>
 	<phrases>
 		<phrasetype name="Control Panel Global" fieldname="cpglobal">
@@ -466,9 +505,11 @@ keypic_contact_submit($message, $name, $email, $errors);]]></phpcode>
 			<phrase name="keypic" date="1407586627" username="admin" version=""><![CDATA[Keypic]]></phrase>
 			<phrase name="keypic_form_details" date="1407586670" username="admin" version=""><![CDATA[Keypic Form Details]]></phrase>
 			<phrase name="keypic_settings" date="1407586646" username="admin" version=""><![CDATA[Keypic Settings]]></phrase>
+			<phrase name="keypic_spam_status" date="1410876784" username="admin" version=""><![CDATA[Keypic Spam Status]]></phrase>
 			<phrase name="login_form_details" date="1407598593" username="admin" version=""><![CDATA[Login Form Details]]></phrase>
 			<phrase name="post_form_details" date="1407692658" username="admin" version=""><![CDATA[Post Form Details]]></phrase>
 			<phrase name="registration_form_details" date="1407587747" username="admin" version=""><![CDATA[Registration Form Details]]></phrase>
+			<phrase name="report_spam" date="1410879641" username="admin" version=""><![CDATA[Report SPAM]]></phrase>
 			<phrase name="requestType" date="1407599228" username="admin" version=""><![CDATA[RequestType]]></phrase>
 			<phrase name="width_height" date="1407598305" username="admin" version=""><![CDATA[Width Height]]></phrase>
 		</phrasetype>

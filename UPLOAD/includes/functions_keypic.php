@@ -116,6 +116,9 @@ function keypic_register_submit(&$userdata)
 		{
 			$userdata->error('keypic_register_spam_message');
 		}
+
+		$keypic_details = array('token' => $vbulletin->GPC['Token'], 'ts' => TIMENOW, 'spam' => $spam);
+		$userdata->set('keypic_user_status', serialize($keypic_details));
 	}		
 }
 
@@ -129,8 +132,8 @@ function keypic_login_submit(&$return_value)
 		
 		if (strval($vbulletin->GPC['Token']) === '')
 		{
-			eval(standard_error(fetch_error('invalid_keypic_post_token')));
-			return;
+			$return_value = false;
+			//eval(standard_error(fetch_error('invalid_keypic_post_token')));
 		}
 		
 		/*$vbulletin->userinfo = fetch_userinfo($vbulletin->userinfo['userid']);
@@ -143,7 +146,10 @@ function keypic_login_submit(&$return_value)
 		if(!is_numeric($spam) || $spam > Keypic::getSpamPercentage())
 		{
 			$return_value = false;
-			eval(standard_error(fetch_error('keypic_login_spam_message')));
+			//eval(standard_error(fetch_error('keypic_login_spam_message')));
 		}
+
+		$keypic_details = array('token' => $vbulletin->GPC['Token'], 'ts' => TIMENOW, 'spam' => $spam);
+		$vbulletin->db->query_write("UPDATE " . TABLE_PREFIX . "user set keypic_user_status = '" . $vbulletin->db->escape_string(serialize($keypic_details)) . "' where userid = " . intval($vbulletin->userinfo['userid']));
 	}		
 }
