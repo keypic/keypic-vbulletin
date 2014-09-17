@@ -482,8 +482,9 @@ print_label_row($spamstatus, construct_button_code($vbphrase['report_spam'], 'us
 		<plugin active="1" executionorder="5">
 			<title>Useradmin Edit Start</title>
 			<hookname>useradmin_edit_start</hookname>
-			<phpcode><![CDATA[if ($_REQUEST['spam'] == 1)
+			<phpcode><![CDATA[if ($_REQUEST['spam'] == 1 && $vbulletin->keypic)
 {
+    keypic_init();
     $keypic_details = @unserialize($user['keypic_user_status']); 
     if (isset($keypic_details['token'])) 
     { 
